@@ -6,9 +6,23 @@ import os
 
 VECTORSTORE_PATH = './vectorstore'
 
+
 def ingest_document(file_path: str) -> dict:
     """
     Load, chunk, embed and index a document into the FAISS vector store.
+
+    Supports PDF, TXT and DOCX formats. If a vector store already exists,
+    the new chunks are added to it. Otherwise a new index is created.
+
+    Args:
+        file_path (str): Absolute or relative path to the document file.
+
+    Returns:
+        dict: A dictionary with a single key:
+            - 'chunks_indexed' (int): Number of text chunks added to the index.
+
+    Raises:
+        ValueError: If the file extension is not supported.
     """
     ext = file_path.split('.')[-1].lower()
     if ext == 'pdf':
@@ -21,13 +35,23 @@ def ingest_document(file_path: str) -> dict:
         raise ValueError(f'Unsupported format: {ext}')
 
     documents = loader.load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=150
+    )
     chunks = splitter.split_documents(documents)
 
-    embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
+    embeddings = HuggingFaceEmbeddings(
+        model_name='sentence-transformers/all-MiniLM-L6-v2'
+    )
 
     if os.path.exists(VECTORSTORE_PATH):
-        vectorstore = FAISS.load_local(VECTORSTORE_PATH, embeddings, allow_dangerous_deserialization=True)
+        vectorstore = FAISS.load_local(
+            VECTORSTORE_PATH,
+            embeddings,
+            allow_dangerous_deserialization=True
+        )
         vectorstore.add_documents(chunks)
     else:
         vectorstore = FAISS.from_documents(chunks, embeddings)
