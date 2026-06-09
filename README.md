@@ -1,4 +1,4 @@
-﻿# RAG Document Q&A
+# RAG Document Q&A
 
 A production-ready Retrieval-Augmented Generation (RAG) system that allows users to upload documents and ask questions in natural language. Answers are generated exclusively from the uploaded document content using Claude as the LLM.
 
@@ -16,8 +16,10 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 ---
 
 ## Architecture
+
+```
 +---------------------------------------------------------+
-|                    Docker Compose                        |
+|                    Docker Compose                       |
 |                                                         |
 |  +-----------------+        +----------------------+   |
 |  |   Frontend      |        |   Backend            |   |
@@ -43,6 +45,7 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 |                              |  Claude Sonnet       |   |
 |                              +----------------------+   |
 +---------------------------------------------------------+
+```
 
 ---
 
@@ -62,6 +65,8 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 ---
 
 ## Project Structure
+
+```
 rag-project/
 ├── backend/
 │   ├── Dockerfile
@@ -80,6 +85,7 @@ rag-project/
 │   └── screenshots/
 ├── docker-compose.yml
 └── .env                     # ANTHROPIC_API_KEY (not committed)
+```
 
 ---
 
@@ -150,7 +156,10 @@ cd rag-document-qa
 ```
 
 2. Create the `.env` file:
+
+```
 ANTHROPIC_API_KEY=your_api_key_here
+```
 
 3. Build and run:
 
