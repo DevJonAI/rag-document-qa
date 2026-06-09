@@ -1,6 +1,6 @@
 # RAG Document Q&A
 
-A production-ready Retrieval-Augmented Generation (RAG) system that allows users to upload documents and ask questions in natural language. Answers are generated exclusively from the uploaded document content using Claude as the LLM.
+A production-ready Retrieval-Augmented Generation (RAG) system that allows users to upload documents and ask questions in natural language. Answers are generated exclusively from the uploaded document content using Claude as the LLM. Supports conversation memory across multiple turns.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
@@ -11,7 +11,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system that allows users
 
 ## Overview
 
-Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds them using a local HuggingFace model, and stores the vectors in a FAISS index. When a question is asked, the most relevant chunks are retrieved and passed to Claude, which generates a grounded answer with source references.
+Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds them using a local HuggingFace model, and stores the vectors in a FAISS index. When a question is asked, the most relevant chunks are retrieved and passed to Claude along with the conversation history, which generates a grounded answer with source references.
 
 ---
 
@@ -42,6 +42,7 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 |                              +----------v-----------+   |
 |                              |  RAG Pipeline        |   |
 |                              |  Retrieve k=4 chunks |   |
+|                              |  Conversation Memory |   |
 |                              |  Claude Sonnet       |   |
 |                              +----------------------+   |
 +---------------------------------------------------------+
@@ -59,6 +60,7 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 | Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
 | Vector Store | FAISS (faiss-cpu) |
 | Orchestration | LangChain + LangChain-Anthropic |
+| Conversation Memory | ConversationBufferMemory |
 | Document Loaders | PyPDF, TextLoader, Docx2txt |
 | Infrastructure | Docker Compose |
 
@@ -74,7 +76,7 @@ rag-project/
 │   └── src/
 │       ├── main.py          # FastAPI app and endpoints
 │       ├── ingestion.py     # Document loading, chunking, embedding, FAISS indexing
-│       ├── retrieval.py     # RAG pipeline: retrieve chunks, call Claude
+│       ├── retrieval.py     # RAG pipeline with conversation memory
 │       └── models.py        # Pydantic schemas
 ├── frontend/
 │   ├── Dockerfile
@@ -97,7 +99,8 @@ rag-project/
 | GET | `/documents` | List of indexed documents |
 | POST | `/ingest` | Upload and index a document |
 | POST | `/query` | Ask a question, get a grounded answer |
-| DELETE | `/vectorstore` | Clear all indexed documents |
+| DELETE | `/memory` | Clear conversation memory |
+| DELETE | `/vectorstore` | Clear all indexed documents and memory |
 
 ---
 
@@ -131,11 +134,11 @@ class DocumentsResponse(BaseModel):
 ### Home
 ![Home](docs/screenshots/01_home.png)
 
-### Document indexed
-![Document indexed](docs/screenshots/02_document_indexed.png)
+### Conversation memory
+![Conversation memory](docs/screenshots/02_conversation_memory.png)
 
-### Q&A with sources
-![Q&A with sources](docs/screenshots/03_qa_with_sources.png)
+### Sources used
+![Sources used](docs/screenshots/03_sources_used.png)
 
 ---
 
@@ -177,9 +180,10 @@ docker-compose up --build
 2. The backend splits the document into chunks of 800 tokens with 150-token overlap
 3. Each chunk is embedded using `all-MiniLM-L6-v2` and stored in a FAISS index
 4. Ask a question in the chat input
-5. The system retrieves the 4 most relevant chunks and passes them to Claude
+5. The system retrieves the 4 most relevant chunks and passes them to Claude along with the conversation history
 6. Claude generates an answer based exclusively on the retrieved content
-7. The "Sources used" section shows the exact fragments used
+7. Follow-up questions are answered with awareness of previous exchanges
+8. The "Sources used" section shows the exact fragments used
 
 ---
 
