@@ -1,0 +1,22 @@
+﻿version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: rag-backend
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./vectorstore:/app/vectorstore
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+  frontend:
+    build: ./frontend
+    container_name: rag-frontend
+    ports:
+      - '8501:8501'
+    depends_on:
+      - backend
+    environment:
+      - API_URL=http://backend:8000
