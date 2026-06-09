@@ -1,19 +1,28 @@
 ﻿from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_anthropic import ChatAnthropic
-from langchain.chains import RetrievalQA
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 import os
 
 VECTORSTORE_PATH = './vectorstore'
 
+# Global memory instance shared across requests
+memory = ConversationBufferMemory(
+    memory_key='chat_history',
+    return_messages=True,
+    output_key='answer'
+)
+
 
 def query_rag(question: str) -> dict:
     """
-    Execute the full RAG pipeline for a given question.
+    Execute the full RAG pipeline for a given question with conversation memory.
 
     Loads the FAISS vector store, retrieves the 4 most relevant chunks
-    using cosine similarity, and passes them as context to Claude.
-    The model generates an answer based exclusively on the retrieved content.
+    using cosine similarity, and passes them along with the conversation
+    history to Claude. The model generates a grounded answer that takes
+    previous exchanges into account.
 
     Args:
         question (str): The natural language question asked by the user.
@@ -45,16 +54,27 @@ def query_rag(question: str) -> dict:
         api_key=os.environ.get('ANTHROPIC_API_KEY')
     )
 
-    qa_chain = RetrievalQA.from_chain_type(
+    qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        chain_type='stuff',
         retriever=retriever,
-        return_source_documents=True
+        memory=memory,
+        return_source_documents=True,
+        output_key='answer'
     )
 
-    result = qa_chain.invoke({'query': question})
+    result = qa_chain.invoke({'question': question})
 
     return {
-        'answer': result['result'],
+        'answer': result['answer'],
         'sources': [doc.page_content[:200] for doc in result['source_documents']]
     }
+
+
+def clear_memory() -> None:
+    """
+    Reset the conversation memory.
+
+    Clears all stored chat history so the next query starts
+    a fresh conversation without context from previous exchanges.
+    """
+    memory.clear()

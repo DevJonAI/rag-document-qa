@@ -44,7 +44,9 @@ if 'messages' not in st.session_state:
     st.session_state.messages = []
 
 if st.button('Clear conversation'):
+    requests.delete(f'{API_URL}/memory')
     st.session_state.messages = []
+    st.rerun()
 
 for msg in st.session_state.messages:
     st.chat_message(msg['role']).write(msg['content'])
