@@ -1,6 +1,6 @@
 # RAG Document Q&A
 
-A production-ready Retrieval-Augmented Generation (RAG) system that allows users to upload documents and ask questions in natural language. Answers are generated exclusively from the uploaded document content using Claude as the LLM. Supports conversation memory across multiple turns.
+A production-ready Retrieval-Augmented Generation (RAG) system that allows users to upload documents and ask questions in natural language. Answers are generated exclusively from the uploaded document content using Claude as the LLM. Supports multiple documents, document-level filtering, and conversation memory across multiple turns.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
@@ -11,7 +11,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system that allows users
 
 ## Overview
 
-Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds them using a local HuggingFace model, and stores the vectors in a FAISS index. When a question is asked, the most relevant chunks are retrieved and passed to Claude along with the conversation history, which generates a grounded answer with source references.
+Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds them using a local HuggingFace model, and stores the vectors in a FAISS index. When a question is asked, the most relevant chunks are retrieved and passed to Claude along with the conversation history. Users can search across all documents or filter by a specific one.
 
 ---
 
@@ -32,6 +32,7 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 |                              |  PyPDF / TextLoader  |   |
 |                              |  RecursiveTextSplit  |   |
 |                              |  HuggingFace Embed   |   |
+|                              |  Metadata tagging    |   |
 |                              +----------+-----------+   |
 |                                         |               |
 |                              +----------v-----------+   |
@@ -42,6 +43,7 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 |                              +----------v-----------+   |
 |                              |  RAG Pipeline        |   |
 |                              |  Retrieve k=4 chunks |   |
+|                              |  Document filtering  |   |
 |                              |  Conversation Memory |   |
 |                              |  Claude Sonnet       |   |
 |                              +----------------------+   |
@@ -76,7 +78,7 @@ rag-project/
 │   └── src/
 │       ├── main.py          # FastAPI app and endpoints
 │       ├── ingestion.py     # Document loading, chunking, embedding, FAISS indexing
-│       ├── retrieval.py     # RAG pipeline with conversation memory
+│       ├── retrieval.py     # RAG pipeline with conversation memory and filtering
 │       └── models.py        # Pydantic schemas
 ├── frontend/
 │   ├── Dockerfile
@@ -98,7 +100,7 @@ rag-project/
 | GET | `/health` | Service status and vector store info |
 | GET | `/documents` | List of indexed documents |
 | POST | `/ingest` | Upload and index a document |
-| POST | `/query` | Ask a question, get a grounded answer |
+| POST | `/query` | Ask a question with optional document filter |
 | DELETE | `/memory` | Clear conversation memory |
 | DELETE | `/vectorstore` | Clear all indexed documents and memory |
 
@@ -109,6 +111,7 @@ rag-project/
 ```python
 class QueryRequest(BaseModel):
     question: str
+    filter_document: Optional[str] = None  # Filter by specific document
 
 class QueryResponse(BaseModel):
     answer: str
@@ -139,6 +142,9 @@ class DocumentsResponse(BaseModel):
 
 ### Sources used
 ![Sources used](docs/screenshots/03_sources_used.png)
+
+### Document filter
+![Document filter](docs/screenshots/04_document_filter.png)
 
 ---
 
@@ -176,14 +182,15 @@ docker-compose up --build
 
 ## How It Works
 
-1. Upload a PDF, TXT, or DOCX file and click "Index document"
-2. The backend splits the document into chunks of 800 tokens with 150-token overlap
-3. Each chunk is embedded using `all-MiniLM-L6-v2` and stored in a FAISS index
-4. Ask a question in the chat input
-5. The system retrieves the 4 most relevant chunks and passes them to Claude along with the conversation history
-6. Claude generates an answer based exclusively on the retrieved content
-7. Follow-up questions are answered with awareness of previous exchanges
-8. The "Sources used" section shows the exact fragments used
+1. Upload one or more PDF, TXT, or DOCX files and click "Index document" for each
+2. The backend splits each document into chunks of 800 tokens with 150-token overlap
+3. Each chunk is stored with its source filename as metadata
+4. Select a specific document to filter search, or use "All documents" to search across everything
+5. Ask a question in the chat input
+6. The system retrieves the 4 most relevant chunks and passes them to Claude along with the conversation history
+7. Claude generates an answer based exclusively on the retrieved content
+8. Follow-up questions are answered with awareness of previous exchanges
+9. The "Sources used" section shows the exact fragments used
 
 ---
 
