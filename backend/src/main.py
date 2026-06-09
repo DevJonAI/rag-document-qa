@@ -47,6 +47,9 @@ async def ingest(file: UploadFile = File(...)):
     """
     Upload and process a document, indexing it into the vector store.
 
+    Each chunk is stored with the source filename as metadata to enable
+    document-level filtering at query time.
+
     Args:
         file (UploadFile): The document file to ingest. Supported: PDF, TXT, DOCX.
 
@@ -63,9 +66,10 @@ async def ingest(file: UploadFile = File(...)):
     tmp_path = f'./tmp_{file.filename}'
     with open(tmp_path, 'wb') as f:
         shutil.copyfileobj(file.file, f)
-    result = ingest_document(tmp_path)
+    result = ingest_document(tmp_path, file.filename)
     os.remove(tmp_path)
-    indexed_docs.append(file.filename)
+    if file.filename not in indexed_docs:
+        indexed_docs.append(file.filename)
     return IngestResponse(chunks_indexed=result['chunks_indexed'], filename=file.filename)
 
 
@@ -74,8 +78,11 @@ def query(request: QueryRequest):
     """
     Perform a RAG query against the indexed documents.
 
+    Optionally filters retrieval to a specific document using the
+    filter_document field in the request body.
+
     Args:
-        request (QueryRequest): Request body containing the user question.
+        request (QueryRequest): Request body containing the question and optional document filter.
 
     Returns:
         QueryResponse: Generated answer and source document excerpts.
@@ -85,7 +92,7 @@ def query(request: QueryRequest):
     """
     if not os.path.exists(VECTORSTORE_PATH):
         raise HTTPException(400, 'No documents indexed yet. Upload a document first.')
-    result = query_rag(request.question)
+    result = query_rag(request.question, request.filter_document)
     return QueryResponse(answer=result['answer'], sources=result['sources'])
 
 

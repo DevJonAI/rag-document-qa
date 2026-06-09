@@ -4,6 +4,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 import os
+from typing import Optional
 
 VECTORSTORE_PATH = './vectorstore'
 
@@ -15,17 +16,18 @@ memory = ConversationBufferMemory(
 )
 
 
-def query_rag(question: str) -> dict:
+def query_rag(question: str, filter_document: Optional[str] = None) -> dict:
     """
     Execute the full RAG pipeline for a given question with conversation memory.
 
-    Loads the FAISS vector store, retrieves the 4 most relevant chunks
-    using cosine similarity, and passes them along with the conversation
-    history to Claude. The model generates a grounded answer that takes
-    previous exchanges into account.
+    Loads the FAISS vector store, optionally filters chunks by source document,
+    retrieves the 4 most relevant chunks, and passes them along with the
+    conversation history to Claude.
 
     Args:
         question (str): The natural language question asked by the user.
+        filter_document (Optional[str]): If provided, restricts retrieval to chunks
+            from this specific document filename. If None, searches all documents.
 
     Returns:
         dict: A dictionary with two keys:
@@ -46,7 +48,16 @@ def query_rag(question: str) -> dict:
         allow_dangerous_deserialization=True
     )
 
-    retriever = vectorstore.as_retriever(search_kwargs={'k': 4})
+    # Apply document filter if specified
+    if filter_document:
+        retriever = vectorstore.as_retriever(
+            search_kwargs={
+                'k': 4,
+                'filter': {'source_filename': filter_document}
+            }
+        )
+    else:
+        retriever = vectorstore.as_retriever(search_kwargs={'k': 4})
 
     llm = ChatAnthropic(
         model='claude-sonnet-4-5',

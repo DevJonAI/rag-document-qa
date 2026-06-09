@@ -7,15 +7,19 @@ import os
 VECTORSTORE_PATH = './vectorstore'
 
 
-def ingest_document(file_path: str) -> dict:
+def ingest_document(file_path: str, filename: str) -> dict:
     """
     Load, chunk, embed and index a document into the FAISS vector store.
+
+    Each chunk is stored with metadata containing the source filename,
+    which allows filtering by document at query time.
 
     Supports PDF, TXT and DOCX formats. If a vector store already exists,
     the new chunks are added to it. Otherwise a new index is created.
 
     Args:
         file_path (str): Absolute or relative path to the document file.
+        filename (str): Original filename used as metadata for filtering.
 
     Returns:
         dict: A dictionary with a single key:
@@ -36,11 +40,19 @@ def ingest_document(file_path: str) -> dict:
 
     documents = loader.load()
 
+    # Add source filename to metadata of each document chunk
+    for doc in documents:
+        doc.metadata['source_filename'] = filename
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=150
     )
     chunks = splitter.split_documents(documents)
+
+    # Ensure metadata is propagated to all chunks
+    for chunk in chunks:
+        chunk.metadata['source_filename'] = filename
 
     embeddings = HuggingFaceEmbeddings(
         model_name='sentence-transformers/all-MiniLM-L6-v2'

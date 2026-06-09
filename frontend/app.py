@@ -40,6 +40,17 @@ st.divider()
 
 st.header('2. Ask questions')
 
+# Document filter selector
+try:
+    r = requests.get(f'{API_URL}/documents')
+    docs = r.json().get('documents', [])
+except Exception:
+    docs = []
+
+filter_options = ['All documents'] + docs
+selected = st.selectbox('Search in:', filter_options)
+filter_document = None if selected == 'All documents' else selected
+
 if 'messages' not in st.session_state:
     st.session_state.messages = []
 
@@ -55,7 +66,10 @@ if question := st.chat_input('Ask a question about your documents...'):
     st.session_state.messages.append({'role': 'user', 'content': question})
     st.chat_message('user').write(question)
     with st.spinner('Generating answer...'):
-        r = requests.post(f'{API_URL}/query', json={'question': question})
+        payload = {'question': question}
+        if filter_document:
+            payload['filter_document'] = filter_document
+        r = requests.post(f'{API_URL}/query', json=payload)
         if r.status_code == 200:
             data = r.json()
             answer = data['answer']

@@ -8,8 +8,11 @@ class QueryRequest(BaseModel):
 
     Attributes:
         question (str): The natural language question to ask about the indexed documents.
+        filter_document (Optional[str]): If provided, restricts the search to chunks
+            from this specific document. If None, searches across all indexed documents.
     """
     question: str
+    filter_document: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
