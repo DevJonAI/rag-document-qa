@@ -42,10 +42,12 @@ Users upload PDF, TXT, or DOCX files. The system splits them into chunks, embeds
 |                                         |               |
 |                              +----------v-----------+   |
 |                              |  RAG Pipeline        |   |
+|                              |  HyDE pre-retrieval  |   |
 |                              |  Retrieve k=4 chunks |   |
 |                              |  Document filtering  |   |
 |                              |  Conversation Memory |   |
 |                              |  Claude Sonnet       |   |
+|                              |  SSE streaming       |   |
 |                              +----------------------+   |
 +---------------------------------------------------------+
 ```
@@ -101,6 +103,7 @@ rag-project/
 | GET | `/documents` | List of indexed documents |
 | POST | `/ingest` | Upload and index a document |
 | POST | `/query` | Ask a question with optional document filter |
+| POST | `/stream` | Ask a question — streams tokens via SSE |
 | DELETE | `/memory` | Clear conversation memory |
 | DELETE | `/vectorstore` | Clear all indexed documents and memory |
 
@@ -146,6 +149,9 @@ class DocumentsResponse(BaseModel):
 ### Document filter
 ![Document filter](docs/screenshots/04_document_filter.png)
 
+### Streaming
+![Streaming](docs/screenshots/05_streaming.png)
+
 ---
 
 ## Setup and Run
@@ -187,10 +193,25 @@ docker-compose up --build
 3. Each chunk is stored with its source filename as metadata
 4. Select a specific document to filter search, or use "All documents" to search across everything
 5. Ask a question in the chat input
-6. The system retrieves the 4 most relevant chunks and passes them to Claude along with the conversation history
+6. The system generates a hypothetical answer to the question (HyDE) and uses
+   it as the retrieval query to improve chunk relevance, then retrieves the 4
+   most similar chunks and passes them to Claude along with the conversation history
 7. Claude generates an answer based exclusively on the retrieved content
 8. Follow-up questions are answered with awareness of previous exchanges
 9. The "Sources used" section shows the exact fragments used
+
+---
+
+## Planned improvements
+
+- **RAGAS evaluation** — `evaluate.py` is written and committed. Uses the
+  [RAGAS framework](https://github.com/explodinggradients/ragas) to score answer
+  faithfulness, context recall, and answer relevancy. Not integrated into Docker
+  Compose yet due to disk space constraints; planned as a standalone evaluation step.
+- **Ollama integration** — replace the Anthropic API with a local model (llama3 or
+  mistral via Ollama) for fully offline, API-key-free operation.
+- **ChromaDB migration** — replace FAISS with ChromaDB for native metadata filtering
+  and better scalability.
 
 ---
 
