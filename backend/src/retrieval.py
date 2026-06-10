@@ -1,14 +1,15 @@
-﻿from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_anthropic import ChatAnthropic
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+import anthropic
+import json
 import os
-from typing import Optional
+from typing import Optional, Generator
 
 VECTORSTORE_PATH = './vectorstore'
 
-# Global memory instance shared across requests
 memory = ConversationBufferMemory(
     memory_key='chat_history',
     return_messages=True,
@@ -20,41 +21,20 @@ def query_rag(question: str, filter_document: Optional[str] = None) -> dict:
     """
     Execute the full RAG pipeline for a given question with conversation memory.
 
-    Loads the FAISS vector store, optionally filters chunks by source document,
-    retrieves the 4 most relevant chunks, and passes them along with the
-    conversation history to Claude.
-
     Args:
         question (str): The natural language question asked by the user.
         filter_document (Optional[str]): If provided, restricts retrieval to chunks
             from this specific document filename. If None, searches all documents.
 
     Returns:
-        dict: A dictionary with two keys:
-            - 'answer' (str): The generated answer from Claude.
-            - 'sources' (list[str]): List of up to 4 text excerpts (first 200 chars each)
-              used as context to generate the answer.
-
-    Raises:
-        Exception: If the vector store does not exist or the Anthropic API call fails.
+        dict: A dictionary with 'answer' and 'sources' keys.
     """
-    embeddings = HuggingFaceEmbeddings(
-        model_name='sentence-transformers/all-MiniLM-L6-v2'
-    )
+    embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
+    vectorstore = FAISS.load_local(VECTORSTORE_PATH, embeddings, allow_dangerous_deserialization=True)
 
-    vectorstore = FAISS.load_local(
-        VECTORSTORE_PATH,
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
-
-    # Apply document filter if specified
     if filter_document:
         retriever = vectorstore.as_retriever(
-            search_kwargs={
-                'k': 4,
-                'filter': {'source_filename': filter_document}
-            }
+            search_kwargs={'k': 4, 'filter': {'source_filename': filter_document}}
         )
     else:
         retriever = vectorstore.as_retriever(search_kwargs={'k': 4})
@@ -81,11 +61,55 @@ def query_rag(question: str, filter_document: Optional[str] = None) -> dict:
     }
 
 
+def stream_rag(question: str, filter_document: Optional[str] = None) -> Generator:
+    """
+    Execute the RAG pipeline and stream the response token by token using SSE.
+
+    Args:
+        question (str): The natural language question asked by the user.
+        filter_document (Optional[str]): If provided, restricts retrieval to chunks
+            from this specific document filename.
+
+    Yields:
+        str: SSE-formatted strings with individual tokens, sources, and a done event.
+    """
+    embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
+    vectorstore = FAISS.load_local(VECTORSTORE_PATH, embeddings, allow_dangerous_deserialization=True)
+
+    if filter_document:
+        retriever = vectorstore.as_retriever(
+            search_kwargs={'k': 4, 'filter': {'source_filename': filter_document}}
+        )
+    else:
+        retriever = vectorstore.as_retriever(search_kwargs={'k': 4})
+
+    docs = retriever.invoke(question)
+    context = '\n\n'.join([doc.page_content for doc in docs])
+    sources = [doc.page_content[:200] for doc in docs]
+
+    prompt = (
+        'You are a helpful assistant that answers questions exclusively based on the provided document context.\n'
+        'If the answer is not in the context, say so clearly.\n\n'
+        'Context:\n' + context + '\n\n'
+        'Question: ' + question + '\n\nAnswer:'
+    )
+
+    client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+
+    with client.messages.stream(
+        model='claude-sonnet-4-5',
+        max_tokens=1024,
+        messages=[{'role': 'user', 'content': prompt}]
+    ) as stream:
+        for text in stream.text_stream:
+            yield 'data: ' + text + '\n\n'
+
+    yield 'event: sources\ndata: ' + json.dumps(sources) + '\n\n'
+    yield 'event: done\ndata: \n\n'
+
+
 def clear_memory() -> None:
     """
     Reset the conversation memory.
-
-    Clears all stored chat history so the next query starts
-    a fresh conversation without context from previous exchanges.
     """
     memory.clear()
